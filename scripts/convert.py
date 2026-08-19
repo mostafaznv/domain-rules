@@ -55,10 +55,25 @@ localhost = 127.0.0.1
 """
 
 FINAL_RULE = """\
-DOMAIN-SUFFIX,ir,DIRECT
 IP-CIDR,192.168.0.0/16,DIRECT
 IP-CIDR,172.16.0.0/12,DIRECT
 IP-CIDR,127.0.0.0/8,DIRECT
+DOMAIN-SUFFIX,ir,DIRECT
+DOMAIN-SUFFIX,chabokan.net,DIRECT
+DOMAIN-SUFFIX,hamravesh.com,DIRECT
+DOMAIN-SUFFIX,snapp.market,DIRECT
+DOMAIN-SUFFIX,push.apple.com,DIRECT
+DOMAIN-KEYWORD,apple.com,DIRECT
+DOMAIN-SUFFIX,lcdn-registration.apple.com,DIRECT
+DOMAIN-SUFFIX,ls.apple.com,DIRECT
+DOMAIN,ca.iadsdk.apple.com,DIRECT
+DOMAIN,cf.iadsdk.apple.com,DIRECT
+DOMAIN,news.iadsdk.apple.com,DIRECT
+DOMAIN,tr.iadsdk.apple.com,DIRECT
+DOMAIN,ut.iadsdk.apple.com,DIRECT
+DOMAIN,notes-analytics-events.apple.com,DIRECT
+DOMAIN,stocks-analytics-events.apple.com,DIRECT
+DOMAIN,weather-analytics-events.apple.com,DIRECT
 GEOIP,IR,DIRECT
 FINAL,PROXY
 """
