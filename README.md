@@ -6,9 +6,9 @@ Currently includes:
 
 | File                | Description                                             | Default Policy |
 |---------------------|---------------------------------------------------------|----------------|
-| `clash-iran.yaml`   | Iran-related domains (`category-ir`)                    | `REJECT`       |
-| `clash-ads.yaml`    | All advertising & tracking domains (`category-ads-all`) | `REJECT`       |
+| `clash-iran.yaml`   | Iran-related domains (`category-ir`)                    | `DIRECT`       |
 | `clash-apple.yaml`  | Apple-related domains (`apple`)                         | `DIRECT`       |
+| `clash-ads.yaml`    | All advertising & tracking domains (`category-ads-all`) | `REJECT`       |
 | `shadowrocket.conf` | Ready-to-use Shadowrocket configuration                 | —              |
 
 ---
