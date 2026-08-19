@@ -26,14 +26,27 @@ jobs:
         run: pip install requests
 
       - name: Generate Rule Files
-        run: python scripts/convert.py
+        run: |
+          python scripts/convert.py
+          echo "----- Generated files -----"
+          ls -la *.yaml *.conf || true
+
+      - name: Verify Files Exist
+        run: |
+          for f in clash-iran.yaml clash-ads.yaml clash-apple.yaml shadowrocket.conf; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing file: $f"
+              exit 1
+            fi
+            echo "✓ $f ($(wc -l < "$f") lines)"
+          done
 
       - name: Prepare Release Info
         id: prep
         run: |
           TIMESTAMP=$(date -u +%Y%m%d%H%M)
           echo "tag=v$TIMESTAMP" >> $GITHUB_OUTPUT
-          echo "name=Release $TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "name=$TIMESTAMP" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release + Upload Assets
         uses: softprops/action-gh-release@v2
@@ -41,10 +54,12 @@ jobs:
           tag_name: ${{ steps.prep.outputs.tag }}
           name: ${{ steps.prep.outputs.name }}
           body: |
-            Automated weekly update of domain lists from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
+            Automated update of domain lists from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
 
-            **Assets in this release:**
-            - `clash-iran.yaml` – Clash domain RULE-SET (iran → DIRECT)
-            - `clash-ads.yaml` – Clash domain RULE-SET (ads → REJECT)
-            - `clash-apple.yaml` – Clash domain RULE-SET (apple → DIRECT)
-            - `shadowrocket.conf` – Ready-to-use Shadowrocket configuration
+            **Assets:**
+            - `clash-iran.yaml`
+            - `clash-ads.yaml`
+            - `clash-apple.yaml`
+            - `shadowrocket.conf`
+
+            ### Latest download links
