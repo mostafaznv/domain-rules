@@ -33,21 +33,21 @@ rule-providers:
     behavior: domain
     url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-iran.yaml"
     path: ./ruleset/iran.yaml
-    interval: 259200 # update every 3 days
+    interval: 86400  # Update once every 24 hours
     
   ads:
     type: http
     behavior: domain
     url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-ads.yaml"
     path: ./ruleset/ads.yaml
-    interval: 259200 
+    interval: 86400 
 
   apple:
     type: http
     behavior: domain
     url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-apple.yaml"
     path: ./ruleset/apple.yaml
-    interval: 259200 
+    interval: 86400 
 
 rules:
   - RULE-SET,iran,DIRECT
