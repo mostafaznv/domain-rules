@@ -20,14 +20,6 @@ https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-iran.y
 https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-ads.yaml
 https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-apple.yaml
 https://github.com/mostafaznv/domain-rules/releases/latest/download/shadowrocket.conf
-
-# or
-
-https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-iran.yaml
-https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-ads.yaml
-https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-apple.yaml
-https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/shadowrocket.conf
-
 ```
 
 
@@ -39,21 +31,21 @@ rule-providers:
   iran:
     type: http
     behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-iran.yaml"
+    url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-iran.yaml"
     path: ./ruleset/iran.yaml
     interval: 259200 # update every 3 days
     
   ads:
     type: http
     behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-ads.yaml"
+    url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-ads.yaml"
     path: ./ruleset/ads.yaml
     interval: 259200 
 
   apple:
     type: http
     behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/clash-apple.yaml"
+    url: "https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-apple.yaml"
     path: ./ruleset/apple.yaml
     interval: 259200 
 
@@ -70,7 +62,7 @@ rules:
 
 1. Copy this link:
 ```
-https://cdn.jsdelivr.net/gh/mostafaznv/domain-rules@release/shadowrocket.conf
+https://github.com/mostafaznv/domain-rules/releases/latest/download/shadowrocket.conf
 ```
 
 2. Open **Shadowrocket → Config** → tap the `+` button
