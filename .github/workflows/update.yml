@@ -53,6 +53,11 @@ jobs:
         with:
           tag_name: ${{ steps.prep.outputs.tag }}
           name: ${{ steps.prep.outputs.name }}
+          files: |
+            clash-iran.yaml
+            clash-ads.yaml
+            clash-apple.yaml
+            shadowrocket.conf
           body: |
             Automated update of domain lists from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
 
@@ -61,5 +66,3 @@ jobs:
             - `clash-ads.yaml`
             - `clash-apple.yaml`
             - `shadowrocket.conf`
-
-            ### Latest download links
