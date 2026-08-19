@@ -74,7 +74,7 @@ DOMAIN,ut.iadsdk.apple.com,DIRECT
 DOMAIN,notes-analytics-events.apple.com,DIRECT
 DOMAIN,stocks-analytics-events.apple.com,DIRECT
 DOMAIN,weather-analytics-events.apple.com,DIRECT
-GEOIP,IR,DIRECT
+#GEOIP,IR,DIRECT
 FINAL,PROXY
 """
 
