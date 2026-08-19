@@ -50,10 +50,14 @@ rule-providers:
     interval: 86400 
 
 rules:
-  - RULE-SET,iran,DIRECT
-  - RULE-SET,ads,REJECT
-  - RULE-SET,apple,DIRECT
   # ... your other rules
+
+  - RULE-SET,ads,REJECT
+  - RULE-SET,iran,DIRECT
+  - RULE-SET,apple,DIRECT
+  
+  # ... your other rules
+  
   - MATCH,PROXY          # or DIRECT, depending on your preference
 ```
 
