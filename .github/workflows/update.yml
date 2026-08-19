@@ -1,0 +1,50 @@
+name: Update Rules
+
+on:
+  schedule:
+    # Every Monday at 04:00 UTC
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Generate Rule Files
+        run: python scripts/convert.py
+
+      - name: Prepare Release Info
+        id: prep
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d%H%M)
+          echo "tag=v$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "name=Release $TIMESTAMP" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release + Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prep.outputs.tag }}
+          name: ${{ steps.prep.outputs.name }}
+          body: |
+            Automated weekly update of domain lists from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
+
+            **Assets in this release:**
+            - `clash-iran.yaml` – Clash domain RULE-SET (iran → DIRECT)
+            - `clash-ads.yaml` – Clash domain RULE-SET (ads → REJECT)
+            - `clash-apple.yaml` – Clash domain RULE-SET (apple → DIRECT)
+            - `shadowrocket.conf` – Ready-to-use Shadowrocket configuration
