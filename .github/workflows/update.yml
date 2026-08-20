@@ -2,8 +2,8 @@ name: Update Rules
 
 on:
   schedule:
-  # Every 2 days at 04:00 UTC
-  - cron: "0 4 */2 * *"
+    # Every 2 days at 04:00 UTC
+    - cron: "0 4 */2 * *"
   workflow_dispatch:
 
 permissions:
@@ -17,17 +17,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
-
-      - name: Install Dependencies
-        run: pip install requests
+          go-version: "1.25.3"
 
       - name: Generate Rule Files
         run: |
-          python scripts/convert.py
+          go run .
           echo "----- Generated files -----"
           ls -la *.yaml *.conf || true
 
