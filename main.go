@@ -82,6 +82,8 @@ DOMAIN,cf.iadsdk.apple.com,DIRECT
 DOMAIN,news.iadsdk.apple.com,DIRECT
 DOMAIN,tr.iadsdk.apple.com,DIRECT
 DOMAIN,ut.iadsdk.apple.com,DIRECT
+DOMAIN,safebrowsing.googleapis.com,DIRECT
+DOMAIN,apple-safebrowsing.googleapis.com,DIRECT
 DOMAIN,notes-analytics-events.apple.com,DIRECT
 DOMAIN,stocks-analytics-events.apple.com,DIRECT
 DOMAIN,weather-analytics-events.apple.com,DIRECT
