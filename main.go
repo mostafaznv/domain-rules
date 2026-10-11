@@ -598,13 +598,7 @@ func generateXray(results map[string][]rule, policies map[string]string) error {
 	fmt.Printf("\n\u2192 xray-routing.json generated (block: %d, direct: %d, proxy: %d)\n", len(block), len(direct), len(proxy))
 	fmt.Println("\u2192 xray-rulesets.json generated")
 
-	// ----- Link for Xray-based clients -----
-	if base := strings.TrimRight(os.Getenv("XRAY_BASE_URL"), "/"); base != "" {
-		fmt.Printf("\nXray ruleset import link:\n  %s/xray-rulesets.json\n", base)
-		fmt.Printf("Xray full routing config link:\n  %s/xray-routing.json\n", base)
-	} else {
-		fmt.Println("\nTip: set XRAY_BASE_URL (e.g. https://raw.githubusercontent.com/you/repo/main) to print the import link.")
-	}
+
 	return nil
 }
 
