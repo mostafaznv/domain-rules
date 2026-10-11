@@ -30,7 +30,7 @@ jobs:
 
       - name: Verify Files Exist
         run: |
-          for f in clash-iran.yaml clash-ads.yaml clash-apple.yaml shadowrocket.conf; do
+          for f in clash-iran.yaml clash-ads.yaml clash-apple.yaml shadowrocket.conf xray-routing.json xray-rulesets.json; do
             if [ ! -f "$f" ]; then
               echo "::error::Missing file: $f"
               exit 1
@@ -55,6 +55,8 @@ jobs:
             clash-ads.yaml
             clash-apple.yaml
             shadowrocket.conf
+            xray-routing.json
+            xray-rulesets.json
           body: |
             Automated update of domain lists from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
 
@@ -63,3 +65,5 @@ jobs:
             - `clash-ads.yaml`
             - `clash-apple.yaml`
             - `shadowrocket.conf`
+            - `xray-routing.json`
+            - `xray-rulesets.json`
