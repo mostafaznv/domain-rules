@@ -2,6 +2,8 @@
 Converts selected lists from v2fly/domain-list-community into:
 - Clash domain RULE-SETs (*.yaml)
 - One Shadowrocket .conf (shadowrocket.conf)
+- Xray routing config (xray-routing.json)
+- v2rayNG-style ruleset list (xray-rulesets.json), importable by URL
 
 It correctly handles "include: ... @attr / @-attr" filtering and brand TLDs.
 */
@@ -9,6 +11,7 @@ It correctly handles "include: ... @attr / @-attr" filtering and brand TLDs.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,6 +92,55 @@ DOMAIN,stocks-analytics-events.apple.com,DIRECT
 DOMAIN,weather-analytics-events.apple.com,DIRECT
 #GEOIP,IR,DIRECT
 FINAL,PROXY`
+
+// ------------------------------------------------------------
+// Xray manual rules (mirror of finalRule above, in Xray syntax)
+// ------------------------------------------------------------
+
+var xrayPrivateIPs = []string{
+	"192.168.0.0/16",
+	"172.16.0.0/12",
+	"127.0.0.0/8",
+	"10.0.0.0/8",
+}
+
+var xrayManualBlock = []string{
+	"domain:1000click.ir",
+	"domain:ad.utop.ir",
+	"domain:adad.ir",
+	"domain:ads.4ml.ir",
+	"domain:ads.baadesaba.ir",
+	"domain:analytics.tapsi.cab",
+	"domain:biz.varzesh3.com",
+	"domain:biz-cdn.varzesh3.com",
+	"domain:clickyab.com",
+	"domain:metrix.ir",
+	"domain:tapsell.com",
+}
+
+var xrayManualDirect = []string{
+	"domain:ir",
+	"domain:chabokan.net",
+	"domain:hamravesh.com",
+	"domain:snapp.market",
+	"domain:sdb247.com",
+	"domain:telewebion.net",
+	"domain:s3mer.net",
+	"domain:push.apple.com",
+	"keyword:apple.com",
+	"domain:lcdn-registration.apple.com",
+	"domain:ls.apple.com",
+	"full:ca.iadsdk.apple.com",
+	"full:cf.iadsdk.apple.com",
+	"full:news.iadsdk.apple.com",
+	"full:tr.iadsdk.apple.com",
+	"full:ut.iadsdk.apple.com",
+	"full:safebrowsing.googleapis.com",
+	"full:apple-safebrowsing.googleapis.com",
+	"full:notes-analytics-events.apple.com",
+	"full:stocks-analytics-events.apple.com",
+	"full:weather-analytics-events.apple.com",
+}
 
 // ------------------------------------------------------------
 // Rule types
@@ -391,6 +443,171 @@ func generateShadowrocket(results map[string][]rule, policies map[string]string)
 	return nil
 }
 
+// ------------------------------------------------------------
+// Xray
+// ------------------------------------------------------------
+
+// xrayRule is one entry of routing.rules in an Xray config.
+type xrayRule struct {
+	Type        string   `json:"type"`
+	Domain      []string `json:"domain,omitempty"`
+	IP          []string `json:"ip,omitempty"`
+	Network     string   `json:"network,omitempty"`
+	OutboundTag string   `json:"outboundTag"`
+}
+
+type xrayRouting struct {
+	DomainStrategy string     `json:"domainStrategy"`
+	Rules          []xrayRule `json:"rules"`
+}
+
+type xrayConfig struct {
+	Routing xrayRouting `json:"routing"`
+}
+
+// v2rayNGRuleset is one item of the custom ruleset list that
+// v2rayNG-like clients can import from a URL.
+type v2rayNGRuleset struct {
+	Remarks     string   `json:"remarks"`
+	Type        string   `json:"type"`
+	Domain      []string `json:"domain,omitempty"`
+	IP          []string `json:"ip,omitempty"`
+	OutboundTag string   `json:"outboundTag"`
+	Enabled     bool     `json:"enabled"`
+	Locked      bool     `json:"locked"`
+}
+
+// xrayTag maps the Shadowrocket policy to an Xray outbound tag.
+// Make sure your Xray outbounds use the tags: proxy, direct, block.
+func xrayTag(policy string) string {
+	switch policy {
+	case "REJECT":
+		return "block"
+	case "DIRECT":
+		return "direct"
+	default:
+		return "proxy"
+	}
+}
+
+// xrayDomain converts one rule into Xray domain syntax.
+// Xray supports full:, domain:, keyword: and regexp: natively.
+func xrayDomain(r rule) string {
+	switch r.kind {
+	case kindFull:
+		return "full:" + r.val
+	case kindKeyword:
+		return "keyword:" + r.val
+	case kindRegexp:
+		return "regexp:" + r.val
+	default:
+		return "domain:" + r.val
+	}
+}
+
+// uniqueStrings removes duplicates (case-insensitive), keeping order.
+func uniqueStrings(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		k := strings.ToLower(s)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, s)
+	}
+	return out
+}
+
+func writeJSON(path string, v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0644)
+}
+
+func generateXray(results map[string][]rule, policies map[string]string) error {
+	// Collect domains per outbound tag, in the same priority order as
+	// Shadowrocket (block first, then direct), manual rules first.
+	block := append([]string{}, xrayManualBlock...)
+	direct := append([]string{}, xrayManualDirect...)
+
+	names := make([]string, 0, len(results))
+	for name := range results {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		pi, pj := policyPriority(policies[names[i]]), policyPriority(policies[names[j]])
+		if pi != pj {
+			return pi < pj
+		}
+		return names[i] < names[j]
+	})
+
+	var proxy []string
+	for _, name := range names {
+		for _, r := range results[name] {
+			d := xrayDomain(r)
+			switch xrayTag(policies[name]) {
+			case "block":
+				block = append(block, d)
+			case "direct":
+				direct = append(direct, d)
+			default:
+				proxy = append(proxy, d)
+			}
+		}
+	}
+	block = uniqueStrings(block)
+	direct = uniqueStrings(direct)
+	proxy = uniqueStrings(proxy)
+
+	// ----- Full routing section -----
+	// Xray uses the first matching rule, so order is important:
+	// private IPs -> block -> direct -> (proxy list) -> catch-all proxy.
+	rules := []xrayRule{
+		{Type: "field", IP: xrayPrivateIPs, OutboundTag: "direct"},
+		{Type: "field", Domain: block, OutboundTag: "block"},
+		{Type: "field", Domain: direct, OutboundTag: "direct"},
+	}
+	if len(proxy) > 0 {
+		rules = append(rules, xrayRule{Type: "field", Domain: proxy, OutboundTag: "proxy"})
+	}
+	rules = append(rules, xrayRule{Type: "field", Network: "tcp,udp", OutboundTag: "proxy"})
+
+	cfg := xrayConfig{Routing: xrayRouting{DomainStrategy: "IPIfNonMatch", Rules: rules}}
+	if err := writeJSON("xray-routing.json", cfg); err != nil {
+		return fmt.Errorf("write xray-routing.json: %w", err)
+	}
+
+	// ----- v2rayNG-style ruleset list (import by URL) -----
+	rulesets := []v2rayNGRuleset{
+		{Remarks: "Private IPs", Type: "field", IP: xrayPrivateIPs, OutboundTag: "direct", Enabled: true},
+		{Remarks: "Block (ads)", Type: "field", Domain: block, OutboundTag: "block", Enabled: true},
+		{Remarks: "Direct (Iran + Apple)", Type: "field", Domain: direct, OutboundTag: "direct", Enabled: true},
+	}
+	if len(proxy) > 0 {
+		rulesets = append(rulesets, v2rayNGRuleset{Remarks: "Proxy", Type: "field", Domain: proxy, OutboundTag: "proxy", Enabled: true})
+	}
+	if err := writeJSON("xray-rulesets.json", rulesets); err != nil {
+		return fmt.Errorf("write xray-rulesets.json: %w", err)
+	}
+
+	fmt.Printf("\n\u2192 xray-routing.json generated (block: %d, direct: %d, proxy: %d)\n", len(block), len(direct), len(proxy))
+	fmt.Println("\u2192 xray-rulesets.json generated")
+
+	// ----- Link for Xray-based clients -----
+	if base := strings.TrimRight(os.Getenv("XRAY_BASE_URL"), "/"); base != "" {
+		fmt.Printf("\nXray ruleset import link:\n  %s/xray-rulesets.json\n", base)
+		fmt.Printf("Xray full routing config link:\n  %s/xray-routing.json\n", base)
+	} else {
+		fmt.Println("\nTip: set XRAY_BASE_URL (e.g. https://raw.githubusercontent.com/you/repo/main) to print the import link.")
+	}
+	return nil
+}
+
 func main() {
 	results := map[string][]rule{}
 	policies := map[string]string{}
@@ -407,6 +624,11 @@ func main() {
 
 	if err := generateShadowrocket(results, policies); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing shadowrocket.conf: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := generateXray(results, policies); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing xray config: %v\n", err)
 		os.Exit(1)
 	}
 }
