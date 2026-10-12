@@ -615,6 +615,16 @@ func generateXray(results map[string][]rule, policies map[string]string) error {
 // so the link stays short and the lists update with the app.
 // ------------------------------------------------------------
 
+// pdict is a dictionary that keeps its keys in the order they are written.
+// Streisand's own links use a fixed key order (name, uuid, domainStrategy,
+// rules), so we keep the same order instead of sorting the keys.
+type pair struct {
+	key string
+	val any
+}
+
+type pdict []pair
+
 type bpObj struct {
 	kind  byte // 's' string, 'a' array, 'd' dict
 	str   string
@@ -654,24 +664,19 @@ func (b *bpBuilder) add(v any) (int, error) {
 		}
 		b.objs[idx].items = refs
 		return idx, nil
-	case map[string]any:
+	case pdict:
 		idx := len(b.objs)
 		b.objs = append(b.objs, bpObj{kind: 'd'})
-		keys := make([]string, 0, len(x))
-		for k := range x {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
 		refs := make([]int, 0, 2*len(x))
-		for _, k := range keys {
-			r, err := b.add(k)
+		for _, kv := range x {
+			r, err := b.add(kv.key)
 			if err != nil {
 				return 0, err
 			}
 			refs = append(refs, r)
 		}
-		for _, k := range keys {
-			r, err := b.add(x[k])
+		for _, kv := range x {
+			r, err := b.add(kv.val)
 			if err != nil {
 				return 0, err
 			}
@@ -709,7 +714,7 @@ func bpHeader(buf *bytes.Buffer, marker byte, n int) {
 }
 
 // encodeBinaryPlist writes a minimal Apple binary plist (bplist00).
-// Supports only string, []any and map[string]any (all that Streisand needs).
+// Supports only string, []any and pdict (all that Streisand needs).
 func encodeBinaryPlist(root any) ([]byte, error) {
 	b := &bpBuilder{strings: map[string]int{}}
 	if _, err := b.add(root); err != nil {
@@ -787,6 +792,52 @@ func toAny(in []string) []any {
 	return out
 }
 
+// Streisand crashed on links longer than ~2000 characters in testing
+// (a 1916-char link imported fine, a 2240-char one crashed the app).
+const streisandMaxLink = 1900
+
+// pruneRedundant drops "full:" / "domain:" entries that another entry in the
+// same list already matches (a keyword inside the host, or a parent domain).
+// The routing result stays the same, but the link gets shorter.
+func pruneRedundant(list []string) []string {
+	var keywords, parents []string
+	for _, e := range list {
+		switch {
+		case strings.HasPrefix(e, "keyword:"):
+			keywords = append(keywords, strings.TrimPrefix(e, "keyword:"))
+		case strings.HasPrefix(e, "domain:"):
+			parents = append(parents, strings.TrimPrefix(e, "domain:"))
+		}
+	}
+
+	out := make([]string, 0, len(list))
+	for _, e := range list {
+		isFull := strings.HasPrefix(e, "full:")
+		isDomain := strings.HasPrefix(e, "domain:")
+		if !isFull && !isDomain {
+			out = append(out, e)
+			continue
+		}
+		host := e[strings.Index(e, ":")+1:]
+
+		redundant := false
+		for _, k := range keywords {
+			if strings.Contains(host, k) {
+				redundant = true
+			}
+		}
+		for _, d := range parents {
+			if strings.HasSuffix(host, "."+d) || (isFull && host == d) {
+				redundant = true
+			}
+		}
+		if !redundant {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func generateStreisand() error {
 	var block, direct, proxy []string
 	for _, t := range targets {
@@ -804,23 +855,25 @@ func generateStreisand() error {
 	}
 	block = uniqueStrings(append(block, xrayManualBlock...))
 	direct = uniqueStrings(append(append([]string{"geosite:private"}, direct...), xrayManualDirect...))
+	block = pruneRedundant(block)
+	direct = pruneRedundant(direct)
 
 	// First match wins. Anything that matches nothing goes to the
 	// default outbound (the proxy), so no catch-all rule is needed.
 	rules := []any{
-		map[string]any{"ip": toAny([]string{"geoip:private"}), "outboundTag": "direct"},
-		map[string]any{"domain": toAny(block), "outboundTag": "block"},
-		map[string]any{"domain": toAny(direct), "outboundTag": "direct"},
+		pdict{{"ip", toAny([]string{"geoip:private"})}, {"outboundTag", "direct"}},
+		pdict{{"domain", toAny(block)}, {"outboundTag", "block"}},
+		pdict{{"domain", toAny(direct)}, {"outboundTag", "direct"}},
 	}
 	if len(proxy) > 0 {
-		rules = append(rules, map[string]any{"domain": toAny(uniqueStrings(proxy)), "outboundTag": "proxy"})
+		rules = append(rules, pdict{{"domain", toAny(uniqueStrings(proxy))}, {"outboundTag", "proxy"}})
 	}
 
-	route := map[string]any{
-		"name":           "Domain Rules",
-		"uuid":           stableUUID("domain-rules"),
-		"domainStrategy": "AsIs",
-		"rules":          rules,
+	route := pdict{
+		{"name", "Domain Rules"},
+		{"uuid", stableUUID("domain-rules")},
+		{"domainStrategy", "AsIs"},
+		{"rules", rules},
 	}
 
 	plist, err := encodeBinaryPlist(route)
@@ -829,6 +882,9 @@ func generateStreisand() error {
 	}
 	inner := "import/route://" + base64.StdEncoding.EncodeToString(plist)
 	link := "streisand://" + base64.StdEncoding.EncodeToString([]byte(inner))
+	if len(link) > streisandMaxLink {
+		fmt.Fprintf(os.Stderr, "Warning: Streisand link is %d characters; links above ~%d may crash the app\n", len(link), streisandMaxLink)
+	}
 
 	if err := os.WriteFile("streisand-link.txt", []byte(link+"\n"), 0644); err != nil {
 		return err
