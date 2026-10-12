@@ -1,17 +1,18 @@
-# Domain Rules for Clash, Shadowrocket & Xray
+# Domain Rules for Clash, Shadowrocket, Xray & Streisand
 
 Weekly updated domain rule sets generated from [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community).
 
 Currently includes:
 
-| File                 | Description                                             | Default Policy |
-|----------------------|---------------------------------------------------------|----------------|
-| `clash-iran.yaml`    | Iran-related domains (`category-ir`)                    | `DIRECT`       |
-| `clash-apple.yaml`   | Apple-related domains (`apple`)                         | `DIRECT`       |
-| `clash-ads.yaml`     | All advertising & tracking domains (`category-ads-all`) | `REJECT`       |
-| `shadowrocket.conf`  | Ready-to-use Shadowrocket configuration                 | —              |
-| `xray-routing.json`  | Full Xray `routing` section (for Xray configs)          | —              |
-| `xray-rulesets.json` | Importable rule list for Xray-based clients (v2rayNG, etc.) | —          |
+| File                 | Description                                                            | Default Policy |
+|----------------------|------------------------------------------------------------------------|----------------|
+| `clash-iran.yaml`    | Iran-related domains (`category-ir`)                                   | `DIRECT`       |
+| `clash-apple.yaml`   | Apple-related domains (`apple`)                                        | `DIRECT`       |
+| `clash-ads.yaml`     | All advertising & tracking domains (`category-ads-all`)                | `REJECT`       |
+| `shadowrocket.conf`  | Ready-to-use Shadowrocket configuration                                | —              |
+| `xray-routing.json`  | Full Xray `routing` section (for Xray configs)                         | —              |
+| `xray-rulesets.json` | Importable rule list for Xray-based clients (v2rayNG, etc.)            | —              |
+| `streisand-link.txt` | Text file containing the `streisand://` import link (copy its content) | —              |
 
 ---
 
@@ -24,6 +25,7 @@ https://github.com/mostafaznv/domain-rules/releases/latest/download/clash-apple.
 https://github.com/mostafaznv/domain-rules/releases/latest/download/shadowrocket.conf
 https://github.com/mostafaznv/domain-rules/releases/latest/download/xray-routing.json
 https://github.com/mostafaznv/domain-rules/releases/latest/download/xray-rulesets.json
+https://github.com/mostafaznv/domain-rules/releases/latest/download/streisand-link.txt
 ```
 
 
@@ -85,7 +87,7 @@ The generated `.conf` already contains:
 - Final fallback rule (`FINAL,PROXY`)
 
 
-## ⚡ Xray (v2rayNG, Hiddify, Streisand and other Xray-based clients)
+## ⚡ Xray (v2rayNG, Hiddify and other Xray-based clients)
 
 > **Important:** your Xray outbounds must use these tags: `proxy`, `direct` and `block`.
 
@@ -120,6 +122,26 @@ The rules are checked in this order (Xray uses the first match):
 It also contains the same extra manual rules as the Shadowrocket config (Iranian ad networks, Apple services, etc.).
 `domainStrategy` is `IPIfNonMatch`. Change it to `AsIs` if you want to avoid the extra local DNS lookup for unmatched domains.
 
+
+
+## 🌟 Streisand
+
+Streisand imports routes with its own `streisand://` deep link, not with a JSON URL. The link is stored as text inside `streisand-link.txt`, so you need to copy it from that file:
+
+1. Open this file in your browser:
+```
+https://github.com/mostafaznv/domain-rules/releases/latest/download/streisand-link.txt
+```
+2. Copy **all the text** inside it (it starts with `streisand://`).
+3. Paste it into Safari's address bar (or tap it after pasting into Notes) and allow **Streisand** to open it.
+4. The route **Domain Rules** is added. Select it in Streisand's routing settings.
+
+It uses `geosite:` tags, so the lists are updated together with Streisand's own geo files. Unmatched traffic goes to your default outbound (the proxy).
+
+Rule order:
+1. Private IPs → `direct`
+2. Ads & tracking domains → `block`
+3. Iran + Apple domains → `direct`
 
 
 ## 📄 License

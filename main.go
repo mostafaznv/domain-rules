@@ -4,6 +4,7 @@ Converts selected lists from v2fly/domain-list-community into:
 - One Shadowrocket .conf (shadowrocket.conf)
 - Xray routing config (xray-routing.json)
 - v2rayNG-style ruleset list (xray-rulesets.json), importable by URL
+- Streisand deep link (streisand-link.txt), a streisand://... import link
 
 It correctly handles "include: ... @attr / @-attr" filtering and brand TLDs.
 */
@@ -11,6 +12,9 @@ It correctly handles "include: ... @attr / @-attr" filtering and brand TLDs.
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -598,7 +602,239 @@ func generateXray(results map[string][]rule, policies map[string]string) error {
 	fmt.Printf("\n\u2192 xray-routing.json generated (block: %d, direct: %d, proxy: %d)\n", len(block), len(direct), len(proxy))
 	fmt.Println("\u2192 xray-rulesets.json generated")
 
+	return nil
+}
 
+// ------------------------------------------------------------
+// Streisand deep link
+//
+// Streisand imports routes from a deep link:
+//   streisand:// + base64( "import/route://" + base64( binary plist ) )
+// The plist is {name, uuid, domainStrategy, rules:[...]}.
+// Rules use geosite:/geoip: tags (resolved by the app's own geo files),
+// so the link stays short and the lists update with the app.
+// ------------------------------------------------------------
+
+type bpObj struct {
+	kind  byte // 's' string, 'a' array, 'd' dict
+	str   string
+	items []int // array items, or dict keys followed by dict values
+}
+
+type bpBuilder struct {
+	objs    []bpObj
+	strings map[string]int
+}
+
+func (b *bpBuilder) add(v any) (int, error) {
+	switch x := v.(type) {
+	case string:
+		if i, ok := b.strings[x]; ok {
+			return i, nil
+		}
+		for _, r := range x {
+			if r > 127 {
+				return 0, fmt.Errorf("non-ASCII string %q is not supported", x)
+			}
+		}
+		b.objs = append(b.objs, bpObj{kind: 's', str: x})
+		i := len(b.objs) - 1
+		b.strings[x] = i
+		return i, nil
+	case []any:
+		idx := len(b.objs)
+		b.objs = append(b.objs, bpObj{kind: 'a'})
+		refs := make([]int, 0, len(x))
+		for _, e := range x {
+			r, err := b.add(e)
+			if err != nil {
+				return 0, err
+			}
+			refs = append(refs, r)
+		}
+		b.objs[idx].items = refs
+		return idx, nil
+	case map[string]any:
+		idx := len(b.objs)
+		b.objs = append(b.objs, bpObj{kind: 'd'})
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		refs := make([]int, 0, 2*len(x))
+		for _, k := range keys {
+			r, err := b.add(k)
+			if err != nil {
+				return 0, err
+			}
+			refs = append(refs, r)
+		}
+		for _, k := range keys {
+			r, err := b.add(x[k])
+			if err != nil {
+				return 0, err
+			}
+			refs = append(refs, r)
+		}
+		b.objs[idx].items = refs
+		return idx, nil
+	}
+	return 0, fmt.Errorf("unsupported plist type %T", v)
+}
+
+func putUint(buf *bytes.Buffer, v uint64, size int) {
+	for i := size - 1; i >= 0; i-- {
+		buf.WriteByte(byte(v >> (8 * uint(i))))
+	}
+}
+
+func bpHeader(buf *bytes.Buffer, marker byte, n int) {
+	if n < 15 {
+		buf.WriteByte(marker<<4 | byte(n))
+		return
+	}
+	buf.WriteByte(marker<<4 | 0x0F)
+	switch {
+	case n < 1<<8:
+		buf.WriteByte(0x10)
+		putUint(buf, uint64(n), 1)
+	case n < 1<<16:
+		buf.WriteByte(0x11)
+		putUint(buf, uint64(n), 2)
+	default:
+		buf.WriteByte(0x12)
+		putUint(buf, uint64(n), 4)
+	}
+}
+
+// encodeBinaryPlist writes a minimal Apple binary plist (bplist00).
+// Supports only string, []any and map[string]any (all that Streisand needs).
+func encodeBinaryPlist(root any) ([]byte, error) {
+	b := &bpBuilder{strings: map[string]int{}}
+	if _, err := b.add(root); err != nil {
+		return nil, err
+	}
+
+	n := len(b.objs)
+	refSize := 1
+	if n > 0xFF {
+		refSize = 2
+	}
+	if n > 0xFFFF {
+		refSize = 4
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("bplist00")
+	offsets := make([]int, n)
+	for i, o := range b.objs {
+		offsets[i] = buf.Len()
+		switch o.kind {
+		case 's':
+			bpHeader(&buf, 0x5, len(o.str))
+			buf.WriteString(o.str)
+		case 'a':
+			bpHeader(&buf, 0xA, len(o.items))
+			for _, r := range o.items {
+				putUint(&buf, uint64(r), refSize)
+			}
+		case 'd':
+			bpHeader(&buf, 0xD, len(o.items)/2)
+			for _, r := range o.items {
+				putUint(&buf, uint64(r), refSize)
+			}
+		}
+	}
+
+	offTable := buf.Len()
+	offSize := 1
+	if offTable > 0xFF {
+		offSize = 2
+	}
+	if offTable > 0xFFFF {
+		offSize = 4
+	}
+	for _, off := range offsets {
+		putUint(&buf, uint64(off), offSize)
+	}
+
+	// Trailer: 6 unused bytes, offset size, ref size, object count,
+	// root object index (0), offset table position.
+	buf.Write(make([]byte, 6))
+	buf.WriteByte(byte(offSize))
+	buf.WriteByte(byte(refSize))
+	putUint(&buf, uint64(n), 8)
+	putUint(&buf, 0, 8)
+	putUint(&buf, uint64(offTable), 8)
+	return buf.Bytes(), nil
+}
+
+// stableUUID gives the same UUID on every run, so re-importing the link
+// updates the same route instead of creating a new one.
+func stableUUID(seed string) string {
+	h := md5.Sum([]byte(seed))
+	h[6] = (h[6] & 0x0f) | 0x30
+	h[8] = (h[8] & 0x3f) | 0x80
+	return strings.ToUpper(fmt.Sprintf("%x-%x-%x-%x-%x", h[0:4], h[4:6], h[6:8], h[8:10], h[10:16]))
+}
+
+func toAny(in []string) []any {
+	out := make([]any, len(in))
+	for i, s := range in {
+		out[i] = s
+	}
+	return out
+}
+
+func generateStreisand() error {
+	var block, direct, proxy []string
+	for _, t := range targets {
+		for _, s := range t.sources {
+			tag := "geosite:" + s
+			switch xrayTag(t.policy) {
+			case "block":
+				block = append(block, tag)
+			case "direct":
+				direct = append(direct, tag)
+			default:
+				proxy = append(proxy, tag)
+			}
+		}
+	}
+	block = uniqueStrings(append(block, xrayManualBlock...))
+	direct = uniqueStrings(append(append([]string{"geosite:private"}, direct...), xrayManualDirect...))
+
+	// First match wins. Anything that matches nothing goes to the
+	// default outbound (the proxy), so no catch-all rule is needed.
+	rules := []any{
+		map[string]any{"ip": toAny([]string{"geoip:private"}), "outboundTag": "direct"},
+		map[string]any{"domain": toAny(block), "outboundTag": "block"},
+		map[string]any{"domain": toAny(direct), "outboundTag": "direct"},
+	}
+	if len(proxy) > 0 {
+		rules = append(rules, map[string]any{"domain": toAny(uniqueStrings(proxy)), "outboundTag": "proxy"})
+	}
+
+	route := map[string]any{
+		"name":           "Domain Rules",
+		"uuid":           stableUUID("domain-rules"),
+		"domainStrategy": "AsIs",
+		"rules":          rules,
+	}
+
+	plist, err := encodeBinaryPlist(route)
+	if err != nil {
+		return err
+	}
+	inner := "import/route://" + base64.StdEncoding.EncodeToString(plist)
+	link := "streisand://" + base64.StdEncoding.EncodeToString([]byte(inner))
+
+	if err := os.WriteFile("streisand-link.txt", []byte(link+"\n"), 0644); err != nil {
+		return err
+	}
+	fmt.Println("\n→ streisand-link.txt generated")
+	fmt.Printf("Streisand import link:\n  %s\n", link)
 	return nil
 }
 
@@ -623,6 +859,11 @@ func main() {
 
 	if err := generateXray(results, policies); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing xray config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := generateStreisand(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing streisand link: %v\n", err)
 		os.Exit(1)
 	}
 }
