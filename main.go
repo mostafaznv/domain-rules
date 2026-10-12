@@ -59,11 +59,7 @@ icmp-auto-reply = true
 [Host]
 localhost = 127.0.0.1`
 
-const finalRule = `IP-CIDR,192.168.0.0/16,DIRECT
-IP-CIDR,172.16.0.0/12,DIRECT
-IP-CIDR,127.0.0.0/8,DIRECT
-DOMAIN-SUFFIX,ir,DIRECT
-DOMAIN-SUFFIX,1000click.ir,REJECT
+const manualRejectRules = `DOMAIN-SUFFIX,1000click.ir,REJECT
 DOMAIN-SUFFIX,ad.utop.ir,REJECT
 DOMAIN-SUFFIX,adad.ir,REJECT
 DOMAIN-SUFFIX,ads.4ml.ir,REJECT
@@ -73,27 +69,21 @@ DOMAIN-SUFFIX,biz.varzesh3.com,REJECT
 DOMAIN-SUFFIX,biz-cdn.varzesh3.com,REJECT
 DOMAIN-SUFFIX,clickyab.com,REJECT
 DOMAIN-SUFFIX,metrix.ir,REJECT
-DOMAIN-SUFFIX,tapsell.com,REJECT
+DOMAIN-SUFFIX,tapsell.com,REJECT`
+
+const finalRule = `IP-CIDR,192.168.0.0/16,DIRECT
+IP-CIDR,172.16.0.0/12,DIRECT
+IP-CIDR,127.0.0.0/8,DIRECT
+DOMAIN-SUFFIX,ir,DIRECT
 DOMAIN-SUFFIX,chabokan.net,DIRECT
 DOMAIN-SUFFIX,hamravesh.com,DIRECT
 DOMAIN-SUFFIX,snapp.market,DIRECT
 DOMAIN-SUFFIX,sdb247.com,DIRECT
 DOMAIN-SUFFIX,telewebion.net,DIRECT
 DOMAIN-SUFFIX,s3mer.net,DIRECT
-DOMAIN-SUFFIX,push.apple.com,DIRECT
 DOMAIN-KEYWORD,apple.com,DIRECT
-DOMAIN-SUFFIX,lcdn-registration.apple.com,DIRECT
-DOMAIN-SUFFIX,ls.apple.com,DIRECT
-DOMAIN,ca.iadsdk.apple.com,DIRECT
-DOMAIN,cf.iadsdk.apple.com,DIRECT
-DOMAIN,news.iadsdk.apple.com,DIRECT
-DOMAIN,tr.iadsdk.apple.com,DIRECT
-DOMAIN,ut.iadsdk.apple.com,DIRECT
 DOMAIN,safebrowsing.googleapis.com,DIRECT
 DOMAIN,apple-safebrowsing.googleapis.com,DIRECT
-DOMAIN,notes-analytics-events.apple.com,DIRECT
-DOMAIN,stocks-analytics-events.apple.com,DIRECT
-DOMAIN,weather-analytics-events.apple.com,DIRECT
 #GEOIP,IR,DIRECT
 FINAL,PROXY`
 
@@ -130,20 +120,9 @@ var xrayManualDirect = []string{
 	"domain:sdb247.com",
 	"domain:telewebion.net",
 	"domain:s3mer.net",
-	"domain:push.apple.com",
 	"keyword:apple.com",
-	"domain:lcdn-registration.apple.com",
-	"domain:ls.apple.com",
-	"full:ca.iadsdk.apple.com",
-	"full:cf.iadsdk.apple.com",
-	"full:news.iadsdk.apple.com",
-	"full:tr.iadsdk.apple.com",
-	"full:ut.iadsdk.apple.com",
 	"full:safebrowsing.googleapis.com",
 	"full:apple-safebrowsing.googleapis.com",
-	"full:notes-analytics-events.apple.com",
-	"full:stocks-analytics-events.apple.com",
-	"full:weather-analytics-events.apple.com",
 }
 
 // ------------------------------------------------------------
@@ -417,6 +396,9 @@ func generateShadowrocket(results map[string][]rule, policies map[string]string)
 	conf = append(conf, generalConf)
 	conf = append(conf, "")
 	conf = append(conf, "[Rule]")
+	conf = append(conf, "# ---------- Manual block rules ----------")
+	conf = append(conf, manualRejectRules)
+	conf = append(conf, "")
 	conf = append(conf, "# ---------- Auto-generated rules ----------")
 
 	for _, name := range names {
